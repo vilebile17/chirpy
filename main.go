@@ -17,10 +17,10 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 }
 
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	coolFunc := func(resp http.ResponseWriter, req *http.Request) {
-		cfg.fileServerHits.Add(1)
-		next.ServeHTTP(resp, req)
+func (config *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+	coolFunc := func(response http.ResponseWriter, request *http.Request) {
+		config.fileServerHits.Add(1)
+		next.ServeHTTP(response, request)
 	}
 	return http.HandlerFunc(coolFunc)
 }

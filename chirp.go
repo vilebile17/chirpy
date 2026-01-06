@@ -11,30 +11,27 @@ import (
 	"github.com/vilebile17/chirpy/internal/database"
 )
 
-type errorJSON struct {
-	Error string `json:"error"`
-}
-
-func (cfg *apiConfig) chirpHandler(resp http.ResponseWriter, req *http.Request) {
-	type incomingJSON struct {
+func (config *apiConfig) chirpHandler(response http.ResponseWriter, request *http.Request) {
+	type IncomingJSON struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
 	}
 
-	decoder := json.NewDecoder(req.Body)
-	incomingjson := incomingJSON{}
+	decoder := json.NewDecoder(request.Body)
+	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
 		fmt.Println(err)
-		respondWithError(resp, req, "Something went wrong")
+		respondWithError(response, request, "Something went wrong", err)
 		return
 	}
 
-	if len(incomingjson.Body) > 140 {
-		respondWithError(resp, req, "Chirp too long")
+	maxChirpLength := 140
+	if len(incomingjson.Body) > maxChirpLength {
+		respondWithError(response, request, "Chirp too long", nil)
 		return
 	} else if len(incomingjson.Body) == 0 {
-		respondWithError(resp, req, "Chirp must be atleast one character long")
+		respondWithError(response, request, "Chirp must be atleast one character long", nil)
 		return
 	}
 
@@ -46,61 +43,64 @@ func (cfg *apiConfig) chirpHandler(resp http.ResponseWriter, req *http.Request) 
 		UserID    uuid.UUID `json:"user_id"`
 	}
 
-	c, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{
-		cleanProfanity(incomingjson.Body),
-		incomingjson.UserID,
+	sqlChirp, err := config.dbQueries.CreateChirp(request.Context(), database.CreateChirpParams{
+		Body:   cleanProfanity(incomingjson.Body),
+		UserID: incomingjson.UserID,
 	})
-
-	chirp := Chirp{
-		c.ID,
-		c.CreatedAt,
-		c.UpdatedAt,
-		c.Body,
-		c.UserID,
-	}
-
 	if err != nil {
-		respondWithError(resp, req, "There was an error creating the chirp")
+		respondWithError(response, request, "There was an error creating the chirp", err)
 		return
 	}
-	respondWithJSON(resp, req, chirp, http.StatusCreated)
+
+	chirp := Chirp{
+		sqlChirp.ID,
+		sqlChirp.CreatedAt,
+		sqlChirp.UpdatedAt,
+		sqlChirp.Body,
+		sqlChirp.UserID,
+	}
+	respondWithJSON(response, request, chirp, http.StatusCreated)
 }
 
-func respondWithError(resp http.ResponseWriter, _ *http.Request, message string) {
-	e := errorJSON{
+func respondWithError(response http.ResponseWriter, _ *http.Request, message string, err error) {
+	fmt.Println(err)
+	type ErrorJSON struct {
+		Error string `json:"error"`
+	}
+
+	errorJSON := ErrorJSON{
 		message,
 	}
 
-	data, err := json.Marshal(e)
+	data, err := json.Marshal(errorJSON)
 	if err != nil {
 		fmt.Printf("Error encoding error message into json: %s\n", err)
-		resp.WriteHeader(500)
+		response.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	resp.Header().Set("Content-Type", "application/json")
-	resp.WriteHeader(400)
-	resp.Write(data)
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(http.StatusBadRequest)
+	response.Write(data)
 }
 
-func respondWithJSON(resp http.ResponseWriter, req *http.Request, payload any, statusCode int) {
+func respondWithJSON(response http.ResponseWriter, request *http.Request, payload any, statusCode int) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		fmt.Println(err)
-		respondWithError(resp, req, "Error interpreting the valid chirp json ")
+		respondWithError(response, request, "Error interpreting the valid chirp json", err)
 		return
 	}
 
-	resp.Header().Set("Content-Type", "application/json")
-	resp.WriteHeader(statusCode)
-	resp.Write(data)
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(statusCode)
+	response.Write(data)
 }
 
-func cleanProfanity(s string) string {
-	words := strings.Split(s, " ")
-	lowerCaseWords := strings.Split(strings.ToLower(s), " ")
-	for i, word := range lowerCaseWords {
-		if word == "kerfuffle" || word == "sharbert" || word == "fornax" {
+func cleanProfanity(text string) string {
+	words := strings.Split(text, " ")
+	for i, word := range words {
+		if strings.ToLower(word) == "kerfuffle" || word == "sharbert" || word == "fornax" {
 			words[i] = "****"
 		}
 	}

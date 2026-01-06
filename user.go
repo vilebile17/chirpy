@@ -16,36 +16,27 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
-func (cfg *apiConfig) registerUser(resp http.ResponseWriter, req *http.Request) {
-	type incomingJSON struct {
+func (config *apiConfig) registerUser(response http.ResponseWriter, request *http.Request) {
+	type IncomingJSON struct {
 		Email string `json:"email"`
 	}
 
-	decoder := json.NewDecoder(req.Body)
-	incomingjson := incomingJSON{}
+	decoder := json.NewDecoder(request.Body)
+	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
 		fmt.Println(err)
-		respondWithError(resp, req, "Something went wrong")
+		respondWithError(response, request, "Something went wrong", err)
 		return
 	}
 
-	u, err := cfg.dbQueries.CreateUser(req.Context(), incomingjson.Email)
+	sqlUser, err := config.dbQueries.CreateUser(request.Context(), incomingjson.Email)
 	if err != nil {
 		fmt.Println(err)
-		respondWithError(resp, req, "An error occured when making the user...")
+		respondWithError(response, request, "An error occured when making the user...", err)
 		return
 	}
 
-	user := User{u.ID, u.CreatedAt, u.UpdatedAt, u.Email}
-	data, err := json.Marshal(user)
-	if err != nil {
-		fmt.Println(err)
-		respondWithError(resp, req, "Error interpreting the user's json ")
-		return
-	}
-
-	resp.Header().Set("Content-Type", "application/json")
-	resp.WriteHeader(http.StatusCreated)
-	resp.Write(data)
+	user := User{sqlUser.ID, sqlUser.CreatedAt, sqlUser.UpdatedAt, sqlUser.Email}
+	respondWithJSON(response, request, user, http.StatusCreated)
 }
