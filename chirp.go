@@ -5,15 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/vilebile17/chirpy/internal/database"
 )
 
 type errorJSON struct {
 	Error string `json:"error"`
 }
 
-func validChirpHandler(resp http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) chirpHandler(resp http.ResponseWriter, req *http.Request) {
 	type incomingJSON struct {
-		Body string `json:"body"`
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -33,13 +38,32 @@ func validChirpHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	type chirp struct {
-		CleanedBody string `json:"cleaned_body"`
+	type Chirp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
 	}
-	v := chirp{
+
+	c, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{
 		cleanProfanity(incomingjson.Body),
+		incomingjson.UserID,
+	})
+
+	chirp := Chirp{
+		c.ID,
+		c.CreatedAt,
+		c.UpdatedAt,
+		c.Body,
+		c.UserID,
 	}
-	respondWithJSON(resp, req, v)
+
+	if err != nil {
+		respondWithError(resp, req, "There was an error creating the chirp")
+		return
+	}
+	respondWithJSON(resp, req, chirp, http.StatusCreated)
 }
 
 func respondWithError(resp http.ResponseWriter, _ *http.Request, message string) {
@@ -59,7 +83,7 @@ func respondWithError(resp http.ResponseWriter, _ *http.Request, message string)
 	resp.Write(data)
 }
 
-func respondWithJSON(resp http.ResponseWriter, req *http.Request, payload any) {
+func respondWithJSON(resp http.ResponseWriter, req *http.Request, payload any, statusCode int) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		fmt.Println(err)
@@ -68,7 +92,7 @@ func respondWithJSON(resp http.ResponseWriter, req *http.Request, payload any) {
 	}
 
 	resp.Header().Set("Content-Type", "application/json")
-	resp.WriteHeader(200)
+	resp.WriteHeader(statusCode)
 	resp.Write(data)
 }
 

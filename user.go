@@ -46,6 +46,6 @@ func (cfg *apiConfig) registerUser(resp http.ResponseWriter, req *http.Request) 
 	}
 
 	resp.Header().Set("Content-Type", "application/json")
-	resp.WriteHeader(201)
+	resp.WriteHeader(http.StatusCreated)
 	resp.Write(data)
 }

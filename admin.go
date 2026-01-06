@@ -51,7 +51,7 @@ func (cfg *apiConfig) resetHandler(resp http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	resp.WriteHeader(200)
+	resp.WriteHeader(http.StatusOK)
 	resp.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	resp.Write([]byte("Successfully removed all entries from the users table and reset the fileServerHits"))
 }
