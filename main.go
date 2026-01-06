@@ -45,8 +45,9 @@ func main() {
 	mux.Handle("/app/", cfg.middlewareMetricsInc(fileServerHandler))
 	mux.HandleFunc("GET /api/healthz", healthzHandler)
 	mux.HandleFunc("GET /admin/metrics", http.HandlerFunc(cfg.readServerHits))
-	mux.HandleFunc("POST /admin/reset", http.HandlerFunc(cfg.resetServerHits))
+	mux.HandleFunc("POST /admin/reset", http.HandlerFunc(cfg.resetHandler))
 	mux.HandleFunc("POST /api/validate_chirp", validChirpHandler)
+	mux.HandleFunc("POST /api/users", cfg.registerUser)
 
 	server := http.Server{
 		Addr:    ":" + port,
