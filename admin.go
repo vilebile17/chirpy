@@ -28,7 +28,6 @@ func (config *apiConfig) readServerHits(response http.ResponseWriter, request *h
 }
 
 func accessAllowed(response http.ResponseWriter) bool {
-	fmt.Println(os.Getenv("PLATFORM"))
 	if platform := os.Getenv("PLATFORM"); platform == "dev" {
 		return true
 	}
@@ -46,7 +45,7 @@ func (config *apiConfig) resetHandler(response http.ResponseWriter, request *htt
 
 	config.fileServerHits.Store(0)
 	if err := config.dbQueries.ResetUsers(request.Context()); err != nil {
-		respondWithError(response, request, "There was an error reseting the users table", err)
+		respondWithError(response, request, "There was an error reseting the users table", err, http.StatusBadRequest)
 		return
 	}
 
