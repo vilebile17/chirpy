@@ -40,9 +40,7 @@ func main() {
 	const port = "8080"
 
 	mux := http.NewServeMux()
-	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
-
-	mux.Handle("/app/", cfg.middlewareMetricsInc(fileServerHandler))
+	mux.Handle("/", cfg.middlewareMetricsInc(http.FileServer(http.Dir("./website/"))))
 	mux.HandleFunc("GET /api/healthz", healthzHandler)
 	mux.HandleFunc("GET /admin/metrics", http.HandlerFunc(cfg.readServerHits))
 	mux.HandleFunc("POST /admin/reset", http.HandlerFunc(cfg.resetHandler))
