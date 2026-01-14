@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/vilebile17/chirpy/internal/auth"
 	"github.com/vilebile17/chirpy/internal/database"
 )
 
@@ -66,8 +67,7 @@ func cleanProfanity(text string) string {
 
 func (config *apiConfig) createChirpHandler(response http.ResponseWriter, request *http.Request) {
 	type IncomingJSON struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(request.Body)
@@ -76,6 +76,17 @@ func (config *apiConfig) createChirpHandler(response http.ResponseWriter, reques
 	if err != nil {
 		fmt.Println(err)
 		respondWithError(response, request, "Something went wrong", err, http.StatusBadRequest)
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken(request.Header)
+	if err != nil {
+		respondWithError(response, request, "There was an error retrieving the JWT token", err, http.StatusUnauthorized)
+		return
+	}
+	userID, err := auth.ValidateJWT(tokenString, config.secret)
+	if err != nil {
+		respondWithError(response, request, "There was an error Validating the JWT token", err, http.StatusUnauthorized)
 		return
 	}
 
@@ -90,7 +101,7 @@ func (config *apiConfig) createChirpHandler(response http.ResponseWriter, reques
 
 	sqlChirp, err := config.dbQueries.CreateChirp(request.Context(), database.CreateChirpParams{
 		Body:   cleanProfanity(incomingjson.Body),
-		UserID: incomingjson.UserID,
+		UserID: userID,
 	})
 	if err != nil {
 		respondWithError(response, request, "There was an error creating the chirp", err, http.StatusBadRequest)

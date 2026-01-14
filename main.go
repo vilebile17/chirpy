@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	fileServerHits atomic.Int32
 	dbQueries      *database.Queries
+	secret         string
 }
 
 func (config *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -37,6 +38,7 @@ func main() {
 	}
 
 	cfg := apiConfig{dbQueries: database.New(db)}
+	cfg.secret = os.Getenv("SECRET")
 	const port = "8080"
 
 	mux := http.NewServeMux()

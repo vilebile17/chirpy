@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -91,5 +92,53 @@ func TestBadSignedString(t *testing.T) {
 	_, err := ValidateJWT("not.a.jwt", "secret")
 	if err == nil {
 		t.Fatalf("Expected an error to occur when trying to validate 'not.a.jwt' with 'secret'")
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	inputs := []http.Header{
+		{}, {}, {}, {}, {},
+	}
+	inputs[0].Add("Authorization", "Bearer 12345")
+	inputs[1].Add("Authorization", "Bearer abc.def.ghi ")
+	inputs[2].Add("Authorization", "Bearer")
+	inputs[3].Add("NotAuthorization", "Bearer 1g1.3j")
+	inputs[4].Add("Authorization", "Bearer     1      ")
+	inputs[4].Add("Authorization", "Bearer 2")
+
+	type Output struct {
+		token        string
+		returnsError bool
+	}
+	outputs := []Output{
+		{
+			"12345",
+			false,
+		},
+		{
+			"abc.def.ghi",
+			false,
+		},
+		{
+			"",
+			true,
+		},
+		{
+			"",
+			true,
+		},
+		{
+			"1",
+			false,
+		},
+	}
+
+	for i := range inputs {
+		token, err := GetBearerToken(inputs[i])
+		if token != outputs[i].token {
+			t.Fatalf("Tokens don't match: %v != %v", token, outputs[i].token)
+		} else if (err != nil) != outputs[i].returnsError {
+			t.Fatalf("Expected return error to be %v but it we actually got %v", outputs[i].returnsError, err != nil)
+		}
 	}
 }

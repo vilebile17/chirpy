@@ -11,19 +11,20 @@ import (
 	"github.com/vilebile17/chirpy/internal/database"
 )
 
-type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
 type IncomingJSON struct {
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
 }
 
 func (config *apiConfig) registerUser(response http.ResponseWriter, request *http.Request) {
+	type User struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
 	decoder := json.NewDecoder(request.Body)
 	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
@@ -54,12 +55,24 @@ func (config *apiConfig) registerUser(response http.ResponseWriter, request *htt
 }
 
 func (config *apiConfig) loginHandler(response http.ResponseWriter, request *http.Request) {
+	type User struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+		Token     string    `json:"token"`
+	}
+
 	decoder := json.NewDecoder(request.Body)
 	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
 		respondWithError(response, request, "Something went wrong", err, http.StatusBadRequest)
 		return
+	}
+
+	if incomingjson.ExpiresInSeconds == 0 || incomingjson.ExpiresInSeconds > 3600 {
+		incomingjson.ExpiresInSeconds = 3600
 	}
 
 	user, err := config.dbQueries.SearchUsersByEmail(request.Context(), incomingjson.Email)
@@ -78,10 +91,17 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 		return
 	}
 
+	expiresIn := time.Duration(incomingjson.ExpiresInSeconds) * time.Second
+	token, err := auth.MakeJWT(user.ID, config.secret, expiresIn)
+	if err != nil {
+		respondWithError(response, request, "There was an error creating the JWT token", err, 400)
+	}
+
 	respondWithJSON(response, request, User{
 		user.ID,
 		user.CreatedAt,
 		user.UpdatedAt,
 		user.Email,
+		token,
 	}, http.StatusOK)
 }
