@@ -115,3 +115,48 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 		refreshToken,
 	}, http.StatusOK)
 }
+
+func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, request *http.Request) {
+	jwtToken, err := auth.GetBearerToken(request.Header)
+	if err != nil {
+		respondWithError(response, request, "There was an error retrieving the JWT token", err, http.StatusUnauthorized)
+		return
+	}
+	userID, err := auth.ValidateJWT(jwtToken, config.secret)
+	if err != nil {
+		respondWithError(response, request, "There was an error Validating the JWT token", err, http.StatusUnauthorized)
+		return
+	}
+
+	decoder := json.NewDecoder(request.Body)
+	incomingjson := IncomingJSON{}
+	err = decoder.Decode(&incomingjson)
+	if err != nil {
+		respondWithError(response, request, "Something went wrong, required format: {'email':'EMAIL', 'password':'PASSWORD', 'expires_in_seconds':'EXPIRES_IN_SECONDS(optional)'}", err, http.StatusBadRequest)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(incomingjson.Password)
+	if err != nil {
+		respondWithError(response, request, "An error occured when hashing the password...", err, http.StatusBadRequest)
+		return
+	}
+
+	user, err := config.dbQueries.UpdateUserEmailAndPassword(request.Context(), database.UpdateUserEmailAndPasswordParams{
+		ID:             userID,
+		Email:          incomingjson.Email,
+		HashedPassword: hashedPassword,
+	})
+	if err != nil {
+		respondWithError(response, request, "There was an error when updating the password...", err, http.StatusBadRequest)
+		return
+	}
+
+	respondWithJSON(response, nil, struct {
+		Email     string    `json:"email"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}{
+		Email:     user.Email,
+		UpdatedAt: user.UpdatedAt,
+	}, http.StatusOK)
+}
