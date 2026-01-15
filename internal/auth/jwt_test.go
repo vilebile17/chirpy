@@ -60,7 +60,7 @@ func TestJWT(t *testing.T) {
 	}
 
 	for i := range inputs {
-		signedString, err := MakeJWT(inputs[i].userID, inputs[i].buildSecret, inputs[i].expiresIn)
+		signedString, err := MakeJWT(inputs[i].userID, inputs[i].buildSecret)
 		if err != nil {
 			if !outputs[i].errorInCreation {
 				t.Fatalf("An error occured unexpectedly during creation of JWT: %s", err)

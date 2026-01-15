@@ -75,7 +75,7 @@ func (config *apiConfig) createChirpHandler(response http.ResponseWriter, reques
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
 		fmt.Println(err)
-		respondWithError(response, request, "Something went wrong", err, http.StatusBadRequest)
+		respondWithError(response, request, "Something went wrong, required format {'body':'BODY'}", err, http.StatusBadRequest)
 		return
 	}
 

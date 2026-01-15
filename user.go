@@ -12,9 +12,8 @@ import (
 )
 
 type IncomingJSON struct {
-	Password         string `json:"password"`
-	Email            string `json:"email"`
-	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 func (config *apiConfig) registerUser(response http.ResponseWriter, request *http.Request) {
@@ -29,7 +28,7 @@ func (config *apiConfig) registerUser(response http.ResponseWriter, request *htt
 	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
-		respondWithError(response, request, "Something went wrong", err, http.StatusBadRequest)
+		respondWithError(response, request, "Something went wrong, required format: {'email':'EMAIL', 'password':'PASSWORD'}", err, http.StatusBadRequest)
 		return
 	}
 
@@ -56,23 +55,20 @@ func (config *apiConfig) registerUser(response http.ResponseWriter, request *htt
 
 func (config *apiConfig) loginHandler(response http.ResponseWriter, request *http.Request) {
 	type User struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}
 
 	decoder := json.NewDecoder(request.Body)
 	incomingjson := IncomingJSON{}
 	err := decoder.Decode(&incomingjson)
 	if err != nil {
-		respondWithError(response, request, "Something went wrong", err, http.StatusBadRequest)
+		respondWithError(response, request, "Something went wrong, required format: {'email':'EMAIL', 'password':'PASSWORD', 'expires_in_seconds':'EXPIRES_IN_SECONDS(optional)'}", err, http.StatusBadRequest)
 		return
-	}
-
-	if incomingjson.ExpiresInSeconds == 0 || incomingjson.ExpiresInSeconds > 3600 {
-		incomingjson.ExpiresInSeconds = 3600
 	}
 
 	user, err := config.dbQueries.SearchUsersByEmail(request.Context(), incomingjson.Email)
@@ -91,10 +87,23 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 		return
 	}
 
-	expiresIn := time.Duration(incomingjson.ExpiresInSeconds) * time.Second
-	token, err := auth.MakeJWT(user.ID, config.secret, expiresIn)
+	jwt, err := auth.MakeJWT(user.ID, config.secret)
 	if err != nil {
-		respondWithError(response, request, "There was an error creating the JWT token", err, 400)
+		respondWithError(response, request, "There was an error creating the JWT token", err, http.StatusBadRequest)
+		return
+	}
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(response, request, "There was an error creating the refresh token", err, http.StatusBadRequest)
+		return
+	}
+
+	if _, err = config.dbQueries.CreateRefreshToken(request.Context(), database.CreateRefreshTokenParams{
+		Token:  refreshToken,
+		UserID: user.ID,
+	}); err != nil {
+		respondWithError(response, request, "There was an error adding the refresh token to the database", err, http.StatusBadRequest)
+		return
 	}
 
 	respondWithJSON(response, request, User{
@@ -102,6 +111,7 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 		user.CreatedAt,
 		user.UpdatedAt,
 		user.Email,
-		token,
+		jwt,
+		refreshToken,
 	}, http.StatusOK)
 }
