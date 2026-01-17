@@ -116,15 +116,22 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 	}, http.StatusOK)
 }
 
-func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, request *http.Request) {
-	jwtToken, err := auth.GetBearerToken(request.Header)
+func getJWTFromHeader(header http.Header, secret string) (string, uuid.UUID, error) {
+	jwtToken, err := auth.GetBearerToken(header)
 	if err != nil {
-		respondWithError(response, request, "There was an error retrieving the JWT token", err, http.StatusUnauthorized)
-		return
+		return "", uuid.Nil, err
 	}
-	userID, err := auth.ValidateJWT(jwtToken, config.secret)
+	userID, err := auth.ValidateJWT(jwtToken, secret)
 	if err != nil {
-		respondWithError(response, request, "There was an error Validating the JWT token", err, http.StatusUnauthorized)
+		return "", uuid.Nil, err
+	}
+	return jwtToken, userID, nil
+}
+
+func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, request *http.Request) {
+	_, userID, err := getJWTFromHeader(request.Header, config.secret)
+	if err != nil {
+		respondWithError(response, request, "Something went wrong while validating the JWT", err, http.StatusUnauthorized)
 		return
 	}
 

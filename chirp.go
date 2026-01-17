@@ -145,7 +145,7 @@ func (config *apiConfig) getChirpHandler(response http.ResponseWriter, request *
 		return
 	}
 
-	chirp, err := config.dbQueries.GetOnechirp(request.Context(), chirpID)
+	chirp, err := config.dbQueries.GetOneChirp(request.Context(), chirpID)
 	if err != nil {
 		respondWithError(response, request, "Chirp not found", err, http.StatusNotFound)
 		response.WriteHeader(404)
@@ -159,4 +159,35 @@ func (config *apiConfig) getChirpHandler(response http.ResponseWriter, request *
 		chirp.Body,
 		chirp.UserID,
 	}, http.StatusOK)
+}
+
+func (config *apiConfig) deleteChirpHandler(response http.ResponseWriter, request *http.Request) {
+	_, userID, err := getJWTFromHeader(request.Header, config.secret)
+	if err != nil {
+		respondWithError(response, request, "There was an error validating the JWT", err, http.StatusUnauthorized)
+		return
+	}
+
+	chirpID, err := uuid.Parse(request.PathValue("ChirpID"))
+	if err != nil {
+		respondWithError(response, request, "There was an error parsing that UUID", err, http.StatusBadRequest)
+		return
+	}
+
+	chirp, err := config.dbQueries.GetOneChirp(request.Context(), chirpID)
+	if err != nil {
+		respondWithError(response, request, "Chirp not found", err, http.StatusNotFound)
+		return
+	}
+
+	if chirp.UserID != userID {
+		respondWithError(response, request, "You can't delete this chirp, incorrect JWT token", err, http.StatusForbidden)
+		return
+	}
+
+	if err = config.dbQueries.DeleteChirp(request.Context(), chirpID); err != nil {
+		respondWithError(response, request, "Chirp not able to be deleted for some reason", err, http.StatusBadRequest)
+		return
+	}
+	response.WriteHeader(http.StatusNoContent)
 }
