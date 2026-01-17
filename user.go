@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,17 +12,10 @@ import (
 	"github.com/vilebile17/chirpy/internal/database"
 )
 
-type IncomingJSON struct {
-	Password string `json:"password"`
-	Email    string `json:"email"`
-}
-
 func (config *apiConfig) registerUser(response http.ResponseWriter, request *http.Request) {
-	type User struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+	type IncomingJSON struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(request.Body)
@@ -49,18 +43,21 @@ func (config *apiConfig) registerUser(response http.ResponseWriter, request *htt
 		return
 	}
 
-	user := User{sqlUser.ID, sqlUser.CreatedAt, sqlUser.UpdatedAt, sqlUser.Email}
+	type User struct {
+		ID          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
+	}
+	user := User{sqlUser.ID, sqlUser.CreatedAt, sqlUser.UpdatedAt, sqlUser.Email, sqlUser.IsChirpyRed}
 	respondWithJSON(response, request, user, http.StatusCreated)
 }
 
 func (config *apiConfig) loginHandler(response http.ResponseWriter, request *http.Request) {
-	type User struct {
-		ID           uuid.UUID `json:"id"`
-		CreatedAt    time.Time `json:"created_at"`
-		UpdatedAt    time.Time `json:"updated_at"`
-		Email        string    `json:"email"`
-		Token        string    `json:"token"`
-		RefreshToken string    `json:"refresh_token"`
+	type IncomingJSON struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(request.Body)
@@ -106,11 +103,21 @@ func (config *apiConfig) loginHandler(response http.ResponseWriter, request *htt
 		return
 	}
 
+	type User struct {
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
+	}
 	respondWithJSON(response, request, User{
 		user.ID,
 		user.CreatedAt,
 		user.UpdatedAt,
 		user.Email,
+		user.IsChirpyRed,
 		jwt,
 		refreshToken,
 	}, http.StatusOK)
@@ -133,6 +140,11 @@ func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, requ
 	if err != nil {
 		respondWithError(response, request, "Something went wrong while validating the JWT", err, http.StatusUnauthorized)
 		return
+	}
+
+	type IncomingJSON struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(request.Body)
@@ -166,4 +178,41 @@ func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, requ
 		Email:     user.Email,
 		UpdatedAt: user.UpdatedAt,
 	}, http.StatusOK)
+}
+
+func (config *apiConfig) upgradePlanHandler(response http.ResponseWriter, request *http.Request) {
+	type IncomingJSON struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(request.Body)
+	incomingjson := IncomingJSON{}
+	err := decoder.Decode(&incomingjson)
+	if err != nil {
+		respondWithError(response, request, "Something went wrong, required format: {'event':EVENT, 'data': {'user_id':USERID}}", err, http.StatusBadRequest)
+		return
+	}
+
+	if incomingjson.Event != "user.upgraded" {
+		response.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	userID, err := uuid.Parse(incomingjson.Data.UserID)
+	if err != nil {
+		respondWithError(response, request, "Something went wrong, couldn't parse data.user_id", err, http.StatusBadRequest)
+		return
+	}
+
+	if _, err = config.dbQueries.UpgradeToChirpyRed(request.Context(), userID); err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(response, request, "Couldn't find the user...", err, http.StatusNotFound)
+		}
+		respondWithError(response, request, "Something went wrong whilst updating the chirpy red for the account", err, http.StatusBadRequest)
+		return
+	}
+	response.WriteHeader(http.StatusNoContent)
 }
