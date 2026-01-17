@@ -181,16 +181,25 @@ func (config *apiConfig) updateDetailsHandler(response http.ResponseWriter, requ
 }
 
 func (config *apiConfig) upgradePlanHandler(response http.ResponseWriter, request *http.Request) {
+	apiKey, err := auth.GetAPIKey(request.Header)
+	if err != nil {
+		respondWithError(response, request, "Something went wrong when getting the API key", err, http.StatusUnauthorized)
+		return
+	}
+	if apiKey != config.apiKey {
+		respondWithError(response, request, "Incorrect API key", fmt.Errorf("APIkey that was sent: '%v' and we expected: '%v'", apiKey, config.apiKey), http.StatusUnauthorized)
+		return
+	}
+
 	type IncomingJSON struct {
 		Event string `json:"event"`
 		Data  struct {
 			UserID string `json:"user_id"`
 		} `json:"data"`
 	}
-
 	decoder := json.NewDecoder(request.Body)
 	incomingjson := IncomingJSON{}
-	err := decoder.Decode(&incomingjson)
+	err = decoder.Decode(&incomingjson)
 	if err != nil {
 		respondWithError(response, request, "Something went wrong, required format: {'event':EVENT, 'data': {'user_id':USERID}}", err, http.StatusBadRequest)
 		return

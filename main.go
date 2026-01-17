@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileServerHits atomic.Int32
 	dbQueries      *database.Queries
 	secret         string
+	apiKey         string
 }
 
 func (config *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -39,6 +40,7 @@ func main() {
 
 	cfg := apiConfig{dbQueries: database.New(db)}
 	cfg.secret = os.Getenv("SECRET")
+	cfg.apiKey = os.Getenv("POLKA_KEY")
 	const port = "8080"
 
 	mux := http.NewServeMux()
