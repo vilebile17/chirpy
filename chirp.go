@@ -118,7 +118,21 @@ func (config *apiConfig) createChirpHandler(response http.ResponseWriter, reques
 }
 
 func (config *apiConfig) getAllChirpsHandler(response http.ResponseWriter, request *http.Request) {
-	sqlChirps, err := config.dbQueries.GetAllChirps(request.Context())
+	var sqlChirps []database.Chirp
+	var err error
+	authorID := request.URL.Query().Get("author_id")
+
+	if authorID == "" {
+		sqlChirps, err = config.dbQueries.GetAllChirps(request.Context())
+	} else {
+		userID, err := uuid.Parse(authorID)
+		if err != nil {
+			respondWithError(response, request, "There was an error parsing the UUID of the user", err, http.StatusBadRequest)
+			return
+		}
+		sqlChirps, err = config.dbQueries.SearchChirpByAuthor(request.Context(), userID)
+	}
+
 	if err != nil {
 		respondWithError(response, request, "There was an error fetching the Chirps", err, http.StatusBadRequest)
 		return
