@@ -76,10 +76,10 @@ curl -sX GET http://localhost:8080/api/chirps/CHIRP_ID | jq
 Don't throw away the output of the create chirp endpoint, we need it for this step! This allows you to view a chirp, **note that** there is
 no `Authorization` header here meaning that anyone can view any chirp (as expected)
 
----
-
 You might see something like this:
 ![viewing a chirp](pics/getSpecificChirp.png)
+
+---
 
 ## To-do List
 - [ ] Give more examples like deleting chirps, updating accounts etc.
